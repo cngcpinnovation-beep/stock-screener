@@ -25,6 +25,8 @@ import sys
 import pandas as pd
 import yfinance as yf
 from watchlist import TICKERS
+import os
+import requests
 
 # Configuration
 # ---------------------------------------------------------------------------
@@ -187,6 +189,96 @@ def _breakout_status(close: float | str, distance: float | str) -> str:
         return "Approaching"
     return "Far"
 
+def build_telegram_message(rows):
+    lines = []
+
+    lines.append("📈 Daily Swing Scan")
+    lines.append("")
+
+    # Score 3 stocks
+    score3 = [
+        r for r in rows
+        if isinstance(r["score"], int) and r["score"] == 3
+    ]
+
+    # Near breakout stocks
+    near_breakout = []
+
+    for r in rows:
+        if not isinstance(r["score"], int):
+            continue
+
+        dist = r["distance"]
+        close = r["close"]
+
+        if not isinstance(dist, (int, float)):
+            continue
+
+        if not isinstance(close, (int, float)):
+            continue
+
+        pct = dist / close * 100
+
+        if pct <= 3:
+            near_breakout.append((r, pct))
+
+    if score3:
+        lines.append("🔥 Score 3 Stocks")
+        lines.append("")
+
+        for r in score3:
+            dist = r["distance"]
+            close = r["close"]
+
+            pct = (
+                dist / close * 100
+                if isinstance(dist, (int, float))
+                else None
+            )
+
+            lines.append(
+                f"{r['stock']}\n"
+                f"Resistance: {r['resistance']}\n"
+                f"Distance: {dist}\n"
+                f"Distance %: {pct:.1f}%\n"
+            )
+
+    if near_breakout:
+        lines.append("")
+        lines.append("⚡ Near Breakout (≤3%)")
+        lines.append("")
+
+        near_breakout.sort(key=lambda x: x[1])
+
+        for r, pct in near_breakout:
+            lines.append(
+                f"{r['stock']} "
+                f"({pct:.1f}%, "
+                f"{_breakout_status(r['close'], r['distance'])})"
+            )
+
+    if not score3 and not near_breakout:
+        lines.append("No actionable setups today.")
+
+    return "\n".join(lines)
+
+
+def send_telegram(message):
+    token = os.environ["TELEGRAM_TOKEN"]
+    chat_id = os.environ["TELEGRAM_CHAT_ID"]
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+
+    response = requests.post(
+        url,
+        data={
+            "chat_id": chat_id,
+            "text": message,
+        },
+        timeout=30,
+    )
+
+    response.raise_for_status()
 
 def main() -> None:
     print(f"Analyzing {len(TICKERS)} stocks ({INTERVAL} interval, {PERIOD} history)...")
@@ -259,6 +351,14 @@ def main() -> None:
             f.write("\n")
 
     print(f"\nDone. Wrote {len(rows)} rows to {OUTPUT_FILE}")
+
+    message = build_telegram_message(rows)
+
+    print("\nTelegram Message")
+    print("----------------")
+    print(message)
+    
+    send_telegram(message)
 
 
 if __name__ == "__main__":
