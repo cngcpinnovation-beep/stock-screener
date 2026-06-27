@@ -264,8 +264,11 @@ def build_telegram_message(rows):
 
 
 def send_telegram(message):
-    token = os.environ["TELEGRAM_TOKEN"]
-    chat_id = os.environ["TELEGRAM_CHAT_ID"]
+    token = os.environ["TELEGRAM_TOKEN"].strip()
+    chat_id = os.environ["TELEGRAM_CHAT_ID"].strip()
+
+    print(f"Token length: {len(token)}")
+    print(f"Chat ID: {chat_id}")
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
 
@@ -278,6 +281,7 @@ def send_telegram(message):
         timeout=30,
     )
 
+    print(response.text)
     response.raise_for_status()
 
 def main() -> None:
