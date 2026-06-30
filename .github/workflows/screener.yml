@@ -2,7 +2,7 @@ name: Daily Stock Scan
 
 on:
   schedule:
-    - cron: '45 15 * * 1-5'
+  - cron: '*/5 * * * *'
 
   workflow_dispatch:
 
